@@ -1,6 +1,6 @@
-Etapa 2 : incluir na pasta c:/webline/upload/
+#incluir na pasta c:/webline/upload/
 
-Os 3 arquivos, cada um segue uma sequencia o batch //////
+#Os 3 arquivos, cada um segue uma sequencia o batch //////
 
 #Funcionamento :
 #Exclui e recria a tabela registros_para_excluir_online; com o campo `Codigo_para_Excluir` em TEXT.

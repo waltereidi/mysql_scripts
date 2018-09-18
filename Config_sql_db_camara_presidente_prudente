@@ -1,0 +1,131 @@
+#Não executar logo de cara
+#é preciso antes, setar a opção innodb_fast_shutdown=0
+#Descrição do conteudo utilizado abaixo de cada configuração;
+
+#######################
+#Otimização 1 - - 
+# Walter.matsuda
+#4G mem
+#Adicionado Pool de memória, Heap sort size,tmp_table
+# J : Lentidão durante processamento de queries com LONGBLOB
+# 
+[client]
+port	= 3306
+socket	= /tmp/mysql.sock
+
+#################################################################
+port	= 3306
+basedir="C:/Program Files/MySQL/MySQL Server 5.1/"
+datadir="D:/WEBLINE/Bancos/data/"
+socket	= /tmp/mysql.sock
+##
+table_open_cache = 1024
+join_buffer_size = 2M
+#Diferente da maioria das configurações do mysql,das quais
+#a quantidade de memoria alocada equivale a um valor máximo,
+#esta variável já é diretamente alocada no valor especificado,
+#por thread i.e. por conexão.é perigoso ter um valor muito alto e
+#quebrar a conexão do banco, caso haja muitas threads.
+#Status para verificar : select_full_join , esta variável deve ser
+#zerada, é a quantidade que estouraram o alocamento padrão. e passaram
+#a utilizar memoria paginada.
+key_buffer_size = 3G
+#Variavel utilizada para guardar os indexes do DB na
+#memória. Status relacionados : 
+#Eficiencia:: Key_reads / Key_read_requests=0.01 
+
+log-bin=mysql-bin
+max_allowed_packet = 1024M
+#Tamanho máximo de envio por row , utilizado para alocar BLOB's e TEXT's columns
+max_heap_table_size = 1024M
+#tanto esta quanto tmp_table_size alocam tabelas dinamicas
+#para tratar campos TEXT/BLOB **memory=LIM(max_heap_table_size&&tmp_table_size)
+myisam_sort_buffer_size = 2M
+net_buffer_length = 32K
+#Durante a transferencia de cada row, este é o tamanho *MÍNINO* alocado e
+#dinamicamente é incrementado até o valor do max_allowed_packet, 
+#um valor alto aloca e gasta taxa de UPLOAD de forma desnecessária.
+#É interessante manter um valor mínimo igual a média de tamanho das rows
+#enviadas pelo sistema. Default :16K
+# [ IMPORTANTE ]
+query_cache_min_res_unit = 2K
+query_cache_limit = 256K
+query_cache_size = 64M
+query_cache_type = 1 
+# query_cache_size : Muito perigoso deixar um valor alto, pode causar lentidões
+#severas e perca de dados/crashing no servidor.
+#Esta variável armazena os resultados das queries executadas no servidor
+#a fim de optmizar queries repetidas, um alto valor de update/inserts 
+#reduz a eficiência desta variável.
+#query_cache_limit : Paginação máxima.
+#query_cache_min_res_unit : Paginação mínima.
+# SHOW STATUS LIKE 'Qcache%';
+# ((Qcache_hits / (Qcache_hits + Qcache_inserts + Qcache_not_cached))*100) 
+# [ #################### ]
+
+# 0 : Não utiliza cache , 1 : Aloca tudo que não tenha SELECT SQL_NO_CACHE , 2 : apenas para querys com SQL_CACHE.
+read_rnd_buffer=4M
+#Variável utilizada durante a ordenação entre queries com ORDER BY,apenas o index de 
+#ordenação é gravado BLOB's e Texts são excluidos.
+#(variáveis como : read_buffer_size e read_rnd_buffer_size dos quais funcionam apenas no MyISAM)
+skip-locking
+sort_buffer_size = 4M
+#Cada query que precisa fazer algum sort aloca
+#um buffer deste tamanho (operações como GROUP BY e ORDER BY utilizam esta variável)
+read_buffer_size=128K
+#Utilizado para scan's de tabelas ( COUNT(*) , MAX(*) ) , 
+#toda vez que é começado uma operação de agrupamento e contagem, o valor armazenado
+#fica nesta variável.
+server-id= 1
+table_open_cache = 1024
+table_definition_cache=16K
+thread_cache_size = 16
+#Deixar este valor sempre baixo, DEFAULT 8.
+tmp_table_size = 2G
+#tanto esta quanto max_heap_table_size alocam tabelas dinamicas
+#para tratar campos TEXT/BLOB **memory=LIM(max_heap_table_size&&tmp_table_size)
+thread_concurrency = 16
+#Quantidade de processadores Lógicos * 2 
+########################
+#InnoDB
+#######
+
+#skip_innodb ::Apesar de comentada, a mesma deve permanescer assim.
+#descomente em caso de não utilizar innoDB.
+innodb_additional_mem_pool_size = 20M
+innodb_buffer_pool_size = 2G
+#pode-se setar esta variável com até 80% da memória
+#Livre do computador.(após discontar S.O. e memória estimada de outros serviços)
+innodb_flush_log_at_trx_commit = 1
+innodb_lock_wait_timeout = 50
+innodb_log_file_size = 512M
+# Cuidado ao modificar. Esta opção armazena um arquivo com o tamanho de seu valor
+#contendo as ultimas transações do innoDB, é importante que este recurso antes de
+#modificado transfira todos os arquivos do log para as devidas tabelas(commit)
+innodb_fast_shutdown=0
+#Descomente a linha acima, reinicie o mysql e só depois aplique a modificação
+#do log_file_size removendo os arquivos (ib_logfile0;ib_logfile1) do datadir.
+
+innodb_log_buffer_size = 2M
+
+
+#################################################################
+[mysqldump]
+quick
+max_allowed_packet = 1024M
+
+#################################################################
+[mysql]
+no-auto-rehash
+
+
+#################################################################
+[myisamchk]
+key_buffer_size = 1G
+sort_buffer_size = 1G
+read_buffer = 8M
+write_buffer = 8M
+
+#################################################################
+[mysqlhotcopy]
+interactive-timeout

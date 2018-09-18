@@ -1,0 +1,62 @@
+Query principal para busca de requisições : 
+antiga : Affected rows: 0 Registros encontrados: 96 Avisos: 0 Duração de 1 query: 22,437 sec. (+ 0,031 sec. network)
+
+Nova Query : Affected rows: 0 Registros encontrados: 96 Avisos: 0 Duração de 1 query: 0,375 sec.
+
+
+SELECT req.id,req.data_hora,req.prazo_entrega,req.`status`,req.prioridade,req.codigo_ano,cm.nome_camara,ts.nome,msg.assunto
+,CASE WHEN req.id_responsavel = 0 THEN 'Setor Suporte' ELSE usu.nome_completo END as nome_completo,req.prazo_entrega
+,(SELECT count(m.id) FROM mensagem as m WHERE m.id_requisicao = req.id and id_usuario in (
+select u.id from usuarios as u where tipo_usuario<>'suporte' ) limit 1) as msgcli
+,(SELECT count(m.id) FROM mensagem as m WHERE m.id_requisicao = req.id and id_usuario in ( select u.id from usuarios as u where tipo_usuario='suporte' ) and visivel=1 limit 1) as msgwebext	
+,(SELECT count(m.id) FROM mensagem as m WHERE m.id_requisicao = req.id and id_usuario in ( select u.id from usuarios as u where tipo_usuario='suporte' ) and visivel=0 limit 1) as msgwebint	
+,(SELECT count(m.id) FROM mensagem as m WHERE m.id_requisicao = req.id and m.visivel=1 and m.id_usuario in (select u.id from usuarios as u where tipo_usuario='suporte' ) and m.id<>( select min(n.id) from mensagem as n where n.id_requisicao= req.id ) )	resparacli
+,(select m.id from mensagem m 
+where m.id = (select max(id) from mensagem where id_requisicao = req.id)) as ultmsg
+,(select min(m.mensagem) from mensagem m 
+where m.id = (select min(id) from mensagem where id_requisicao = req.id)) as primsg
+,(select max(m.data_hora) from mensagem m 
+where m.id = (select max(id) from mensagem where id_requisicao = req.id)) as ultdata 
+,(select u.nome_completo from mensagem m
+INNER JOIN usuarios as u ON u.id = m.id_usuario 
+where m.id = (select max(id) from mensagem where id_requisicao = req.id)) as ultusermsg
+,rver.versao ,rver.pontuacao,rver.classificacao ,req.feedback ,req.id_responsavel
+,usu.setor,msg.visivel,req.id_camara
+FROM requisicao as req 
+INNER JOIN camara as cm ON cm.id = req.id_camara
+INNER JOIN tipo_suporte as ts ON ts.id = req.id_tipo_suporte
+INNER JOIN mensagem as msg ON msg.id_requisicao = req.id
+LEFT JOIN usuarios as usu ON usu.id = req.id_responsavel 
+LEFT JOIN requisicao_versao as rver ON rver.id_req = req.id
+where req.`status` NOT IN ( 'FECHADO' , 'ATENDIDO','Atendida sem retorno do cliente')
+GROUP BY req.id ORDER BY req.id DESC 
+
+
+Retirado varios Subquerys sem necessidade e aproveitado o group by de mensagem para executar as contas através de um SUM do que uma subquery com count.
+removido tempo extra de chamada pelas subquerys com seleção dos id's das mensagens.
+
+Nova query(versao "executavel")
+
+SELECT req.id,req.data_hora,req.prazo_entrega,req.`status`,req.prioridade,req.codigo_ano,cm.nome_camara,ts.nome,msg.assunto,
+CASE WHEN req.id_responsavel = 0 THEN 'Setor Suporte' ELSE usu.nome_completo END as nome_completo,req.prazo_entrega,
+SUM( IF( usu.tipo_usuario='suporte' , 1 , 0 ) ) as msgcli,
+SUM(IF( usu.tipo_usuario='suporte' AND msg.visivel=1 , 1 , 0 )) as msgwebext,	
+SUM(IF( usu.tipo_usuario='suporte' AND msg.visivel=0 , 1 , 0 )) as msgwebint,
+SUM(IF( usu.tipo_usuario='suporte' AND msg.visivel=1 AND ( msg.id_usuario<>( select @minId:=min(n.id) from mensagem as n where n.id_requisicao= req.id )) , 1 , 0 )) AS 
+resparacli,
+max(msg.id) as ultmsg
+,(SELECT ms.mensagem FROM mensagem AS ms WHERE ms.id = MIN(msg.id) ) as primsg
+,MAX(msg.data_hora) as ultdata 
+,(select u.nome_completo from mensagem m
+INNER JOIN usuarios as u ON u.id = m.id_usuario 
+where m.id = (select max(id) from mensagem where id_requisicao = req.id)) as ultusermsg
+,rver.versao ,rver.pontuacao,rver.classificacao ,req.feedback ,req.id_responsavel
+,usu.setor,msg.visivel,req.id_camara
+FROM requisicao as req 
+INNER JOIN camara as cm ON cm.id = req.id_camara
+INNER JOIN tipo_suporte as ts ON ts.id = req.id_tipo_suporte
+INNER JOIN mensagem as msg ON msg.id_requisicao = req.id
+LEFT JOIN usuarios as usu ON usu.id = req.id_responsavel 
+LEFT JOIN requisicao_versao as rver ON rver.id_req = req.id
+where req.`status` NOT IN ( 'FECHADO' , 'ATENDIDO','Atendida sem retorno do cliente')
+GROUP BY req.id ORDER BY req.id DESC 

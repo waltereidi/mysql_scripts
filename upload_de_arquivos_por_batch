@@ -1,0 +1,186 @@
+Etapa 2 : incluir na pasta c:/webline/upload/
+
+Os 3 arquivos, cada um segue uma sequencia o batch //////
+
+#Funcionamento :
+#Exclui e recria a tabela registros_para_excluir_online; com o campo `Codigo_para_Excluir` em TEXT.
+#E pega todas as tabelas do sistema com nome wcm e wcm_arquivos com a coluna
+#atualizar internet.
+nome : init_query
+
+DROP TABLE IF EXISTS registros_para_excluir_online;
+CREATE TABLE IF NOT EXISTS`registros_para_excluir_online` (
+`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+`Nome_Tabela` VARCHAR(100) NULL DEFAULT NULL,
+`Campo_Chave_Primaria` VARCHAR(50) NULL DEFAULT NULL,
+`Codigo_para_Excluir` TEXT NULL DEFAULT NULL,
+`atualizado_internet` CHAR(1) NULL DEFAULT '0',
+PRIMARY KEY (`id`),
+INDEX `Nome_Tabela` (`Nome_Tabela`),
+INDEX `Campo_Chave_Primaria` (`Campo_Chave_Primaria`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=MyISAM
+;
+INSERT INTO registros_para_excluir_online(`Nome_Tabela`,
+`Campo_Chave_Primaria`,`Codigo_para_Excluir`,`atualizado_internet`)
+SELECT CONCAT(table_schema,'.',table_name),
+REPLACE(REPLACE(GROUP_CONCAT(column_name),'atualizado_internet',''),',','') , '' ,''
+FROM information_schema.columns 
+WHERE (column_name='atualizado_internet' OR column_key='PRI') AND table_schema IN('wcm','wcm_arquivos') GROUP BY table_schema,table_name;
+DELETE FROM registros_para_excluir_online WHERE (Campo_Chave_Primaria IS NULL OR TRIM(Campo_Chave_Primaria) ='') OR (Nome_Tabela IS NULL OR TRIM(Nome_Tabela) ='');
+DELETE FROM registros_para_excluir_online WHERE nome_tabela IN('temp_ses_select');
+
+#######################################
+#######################################
+
+midpoint_query 
+
+CALL UPLOAD_routine();
+
+e midpoint2_query
+
+CALL UPLOAD_routine2();
+
+#########################################
+#########################################
+PROCEDURE UPLOAD_routine() no LOCAL
+BEGIN
+######
+# A definição de loucura é fazer varias vezes a
+# mesma coisa e esperar por diferentes resultados.
+# Albert Einstein.
+DECLARE table_name , column_name , comando TEXT DEFAULT '';
+DECLARE _id,fim INT DEFAULT 0;
+DECLARE cur cursor FOR SELECT id , Nome_Tabela,Campo_Chave_Primaria FROM wcm.registros_para_excluir_online;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET fim=1;
+OPEN cur;
+#Handler para Recuperar-se de erros.
+loopera: LOOP 
+FETCH cur INTO _id , table_name , column_name ;
+IF fim =1 THEN
+LEAVE loopera;
+END IF ;
+SET @sqlstr=(SELECT CONCAT("UPDATE registros_para_excluir_online AS a
+INNER JOIN (SELECT GROUP_CONCAT(",column_name,") AS idd FROM ",table_name," WHERE atualizado_internet=0 ) AS b 
+SET a.Codigo_para_Excluir=b.idd WHERE a.id =",_id));
+INSERT INTO walter_procedures.debugger(col1) 
+SELECT @sqlstr;
+#DELETE FROM registros_para_excluir_online WHERE Codigo_para_Excluir IS NULL OR TRIM(Codigo_para_Excluir)='';
+
+PREPARE stmt FROM @sqlstr; EXECUTE stmt ; DEALLOCATE PREPARE stmt ;
+SET comando = NULL;
+END LOOP;
+END
+
+##########################
+# A procedure acima vai no banco wcm LOCAL.
+#Ela pega todos os id's que serão enviados ao banco online e os coloca dentro da tabela registros_para_excluir_online
+##########################
+
+
+###############################################
+###############################################
+UPLOAD_routine2() no banco LOCAL
+######
+
+BEGIN
+DECLARE comando LONGTEXT;
+
+SELECT CONCAT(GROUP_CONCAT(CONCAT('mysqldump -u WEBLINE -p*bew0715 --max_allowed_packet=1024M --extended-insert=FALSE --default-character-set=latin1 --no-create-info --skip-triggers --where "atualizado_internet=0" '
+,REPLACE(nome_tabela,'.',' '),'>c:/webline/UPLOAD/',nome_tabela
+) SEPARATOR '&'),' & comando_dump2.bat') INTO comando FROM registros_para_excluir_online;
+SELECT comando INTO dumpfile "C:/WEBLINE/UPLOAD/comando_dump.bat";
+SELECT CONCAT(GROUP_CONCAT(CONCAT(' mysql -hwls.com.br -u walter.matsuda -pA*298djw876 --max_allowed_packet=1024M --default-character-set=latin1 wcm_homologacao ,' '	) SEPARATOR '&'),' & mysql -h177.126.176.85 -uwalter.matsuda -pA*298djw876 wcm_homologacao SELECT comando INTO dumpfile "C:/WEBLINE/UPLOAD/comando_dump2.bat";
+
+SELECT CONCAT(GROUP_CONCAT(CONCAT('del ',nome_tabela,' '
+) SEPARATOR '&'),'& del comando_dump.bat & del comando_dump2.bat & del comando_dump3.bat & del excluir_online.sql & mysqldump -h wls.com.br -u walter.matsuda -pA*298djw876 wcm_garca registros_para_excluir_online >C:/webline/UPLOAD/reg_exx & mysql -h 127.0.0.1 -u WEBLINE -p*bew0715 wcm_garca registros_para_excluir_online ' )INTO comando FROM registros_para_excluir_online;
+SELECT comando INTO dumpfile "C:/WEBLINE/UPLOAD/comando_dump3.bat";
+
+END
+
+##########################
+# A procedure acima vai no banco wcm LOCAL.
+#Ela gera o texto do dump e exclusão /criação de todo o processo de envio em arquivos .bat
+##########################
+
+
+
+###############################################
+###############################################
+UPLOAD_routine() no banco Online
+######
+
+BEGIN
+DECLARE table_name, `keys` , column_name TEXT; 
+DECLARE fim INTEGER DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT nome_tabela , Campo_Chave_Primaria , Codigo_para_Excluir FROM registros_para_excluir_online;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET fim=1;
+
+
+OPEN cur ;
+
+DELETAROW: LOOP
+FETCH cur INTO table_name , column_name , `keys`;
+IF fim = 1 THEN
+LEAVE DELETAROW;
+END IF;
+
+SET @sqlstr=(SELECT CONCAT("DELETE FROM ",table_name," WHERE `",column_name,"` IN(",IF(`keys`<>NULL OR `keys`<>'',`keys`,0),") ;"));
+PREPARE stmt FROM @sqlstr;EXECUTE stmt;DEALLOCATE PREPARE stmt;
+INSERT INTO walter_Procedures.debugger(col1)
+SELECT @sqlstr;
+END LOOP;
+CLOSE cur;
+END
+
+##########################
+# A procedure acima vai no banco wcm ONLINE.
+#Ela deleta todos os arquivos com as ID's dentro do excluir registros online
+##########################
+
+
+
+
+###############################################
+###############################################
+UPLOAD_routine2() no banco Online
+######
+
+BEGIN
+######
+# A definição de loucura é fazer varias vezes a
+# mesma coisa e esperar por diferentes resultados.
+# Albert Einstein.
+DECLARE table_name , column_name , comando TEXT DEFAULT '';
+DECLARE _id,fim INT DEFAULT 0;
+DECLARE cur cursor FOR SELECT id , Nome_Tabela,Campo_Chave_Primaria FROM wcm.registros_para_excluir_online;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET fim=1;
+
+OPEN cur;
+#Handler para Recuperar-se de erros.
+
+loopera: LOOP 
+FETCH cur INTO _id , table_name , column_name ;
+IF fim =1 THEN
+LEAVE loopera;
+END IF ;
+SET @sqlstr=(SELECT CONCAT("UPDATE registros_para_excluir_online AS a
+INNER JOIN (SELECT GROUP_CONCAT(",column_name,") AS idd FROM ",table_name," WHERE atualizado_internet=0 ) AS b 
+SET a.Codigo_para_Excluir=b.idd WHERE a.id =",_id));
+PREPARE stmt FROM @sqlstr; EXECUTE stmt ; DEALLOCATE PREPARE stmt ;
+SET @sqlstr=(SELECT CONCAT("UPDATE ",table_name,"
+SET atualizado_internet=1; "));
+PREPARE stmt FROM @sqlstr; EXECUTE stmt ; DEALLOCATE PREPARE stmt ;
+SET comando = NULL;
+
+END LOOP;
+
+#
+##########################
+# A procedure acima vai no banco wcm ONLINE.
+#Ela verifica se os id's deletados estão dentro do banco, e os reenvia para a tabela,
+#onde a mesma será gerado DUMP,recomparada no banco local e re-ajustado o próximo envio.
+##########################
+#
+END

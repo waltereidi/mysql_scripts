@@ -1,8 +1,8 @@
 Query principal para busca de requisições : 
 antiga : Affected rows: 0 Registros encontrados: 96 Avisos: 0 Duração de 1 query: 22,437 sec. (+ 0,031 sec. network)
-
 Nova Query : Affected rows: 0 Registros encontrados: 96 Avisos: 0 Duração de 1 query: 0,375 sec.
-
+============================================
+##query ANTIGA####-
 
 SELECT req.id,req.data_hora,req.prazo_entrega,req.`status`,req.prioridade,req.codigo_ano,cm.nome_camara,ts.nome,msg.assunto
 ,CASE WHEN req.id_responsavel = 0 THEN 'Setor Suporte' ELSE usu.nome_completo END as nome_completo,req.prazo_entrega
@@ -30,13 +30,16 @@ LEFT JOIN usuarios as usu ON usu.id = req.id_responsavel
 LEFT JOIN requisicao_versao as rver ON rver.id_req = req.id
 where req.`status` NOT IN ( 'FECHADO' , 'ATENDIDO','Atendida sem retorno do cliente')
 GROUP BY req.id ORDER BY req.id DESC 
-
+################################
+########################################
 
 Retirado varios Subquerys sem necessidade e aproveitado o group by de mensagem para executar as contas através de um SUM do que uma subquery com count.
 removido tempo extra de chamada pelas subquerys com seleção dos id's das mensagens.
 
 Nova query(versao "executavel")
-
+####
+#Query NOVA######
+###
 SELECT req.id,req.data_hora,req.prazo_entrega,req.`status`,req.prioridade,req.codigo_ano,cm.nome_camara,ts.nome,msg.assunto,
 CASE WHEN req.id_responsavel = 0 THEN 'Setor Suporte' ELSE usu.nome_completo END as nome_completo,req.prazo_entrega,
 SUM( IF( usu.tipo_usuario='suporte' , 1 , 0 ) ) as msgcli,
